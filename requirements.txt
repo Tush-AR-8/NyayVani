@@ -1,0 +1,9 @@
+streamlit==1.67.0
+google-genai==3.6.1
+langgraph==1.2.24
+chromadb==1.5.9
+rank-bm25==0.2.2
+pymupdf==2.1
+gTTS==2.5.4
+jiwer==4.0.0
+pandas==3.0.5
