@@ -7,3 +7,4 @@ pymupdf==2.1
 gTTS==2.5.4
 jiwer==4.0.0
 pandas==3.0.5
+deep-translator==1.11.4

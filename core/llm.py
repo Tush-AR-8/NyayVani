@@ -44,16 +44,15 @@ def _version_score(name: str) -> tuple:
     return (-penalty, ver)
 
 
-def pick_model() -> str:
-    """Choose a fast, free text+audio+image model available to this key."""
-    if _state["model"]:
-        return _state["model"]
+def candidate_models() -> list[str]:
+    """Flash models this key can use, best first. Cached after the first call."""
+    if _state.get("candidates"):
+        return _state["candidates"]
+    names = []
     if config.GEMINI_MODEL:
-        _state["model"] = config.GEMINI_MODEL
-        return _state["model"]
-    chosen = None
+        names.append(config.GEMINI_MODEL)
     try:
-        names = []
+        found = []
         for m in _client().models.list():
             actions = getattr(m, "supported_actions", None) or []
             name = (m.name or "").replace("models/", "")
@@ -63,14 +62,29 @@ def pick_model() -> str:
                 continue
             if any(x in name for x in ("image", "tts", "live", "audio", "embedding", "thinking", "robotics", "computer")):
                 continue
-            names.append(name)
-        if names:
-            names.sort(key=_version_score, reverse=True)
-            chosen = names[0]
-    except Exception as e:  # listing failed - use a sensible default
-        _state["last_error"] = f"Model list failed: {e}"
-    _state["model"] = chosen or "gemini-flash-latest"
+            found.append(name)
+        found.sort(key=_version_score, reverse=True)
+        names += found
+    except Exception as e:  # listing failed - use sensible defaults
+        _state["last_error"] = f"Could not list Gemini models: {e}"
+    for alias in ("gemini-flash-latest", "gemini-flash-lite-latest"):
+        if alias not in names:
+            names.append(alias)
+    _state["candidates"] = list(dict.fromkeys(names))
+    return _state["candidates"]
+
+
+def pick_model() -> str:
+    if not _state["model"]:
+        _state["model"] = candidate_models()[0]
     return _state["model"]
+
+
+def _bad_model(err: Exception) -> bool:
+    """Errors that mean 'this model will not work for this key' -> try the next model."""
+    t = str(err).lower()
+    return any(k in t for k in ("404", "not found", "not_found", "permission", "403", "limit: 0",
+                                "free_tier", "not supported", "unsupported", "billing", "is not available"))
 
 
 def pick_embed_model() -> str:
@@ -121,45 +135,60 @@ def generate(prompt: str, *, system: str = "", parts: list | None = None,
         contents.append(types.Part.from_bytes(data=data, mime_type=mime))
     contents.append(prompt)
 
-    model = pick_model()
-    use_thinking = True
-    delay = 2.0
+    models = candidate_models()
+    start = models.index(pick_model()) if pick_model() in models else 0
     last = None
-    for attempt in range(retries + 1):
-        cfg = dict(temperature=temperature)
-        if system:
-            cfg["system_instruction"] = system
-        if json_mode:
-            cfg["response_mime_type"] = "application/json"
-        if use_thinking:
-            cfg["thinking_config"] = _thinking_config(model)
-        try:
-            resp = _client().models.generate_content(
-                model=model, contents=contents, config=types.GenerateContentConfig(**cfg))
-            text = resp.text or ""
-            if not text.strip():
-                raise RuntimeError("Empty response from model")
-            return text
-        except Exception as e:
-            last = e
-            msg = str(e).lower()
-            if use_thinking and ("thinking" in msg or "invalid_argument" in msg or "400" in msg):
-                use_thinking = False   # this model does not accept the setting - retry without it
-                continue
-            if "404" in msg or "not found" in msg:
-                # model name retired - fall back to Google's "latest flash" alias once
-                if model == "gemini-flash-latest":
-                    break
-                model = "gemini-flash-latest"
-                _state["model"] = model
-                continue
-            if _is_retryable(e) and attempt < retries:
-                time.sleep(delay)
-                delay *= 2
-                continue
-            break
-    _state["last_error"] = str(last)
+    for model in models[start:start + 5]:
+        use_thinking = True
+        delay = 2.0
+        attempt = 0
+        while attempt <= retries:
+            cfg = dict(temperature=temperature)
+            if system:
+                cfg["system_instruction"] = system
+            if json_mode:
+                cfg["response_mime_type"] = "application/json"
+            if use_thinking:
+                cfg["thinking_config"] = _thinking_config(model)
+            try:
+                resp = _client().models.generate_content(
+                    model=model, contents=contents, config=types.GenerateContentConfig(**cfg))
+                text = resp.text or ""
+                if not text.strip():
+                    raise RuntimeError("Empty response from model")
+                _state["model"] = model          # remember the model that works
+                _state["last_error"] = ""
+                return text
+            except Exception as e:
+                last = e
+                msg = str(e).lower()
+                if use_thinking and ("thinking" in msg or "invalid_argument" in msg or "400" in msg):
+                    use_thinking = False   # this model does not accept the setting - retry without it
+                    continue
+                if _bad_model(e):
+                    break                  # try the next model
+                if "api key" in msg or "api_key" in msg:
+                    _state["last_error"] = str(e)
+                    raise LLMUnavailable(f"Gemini API key problem: {e}")
+                if _is_retryable(e) and attempt < retries:
+                    time.sleep(delay)
+                    delay *= 2
+                    attempt += 1
+                    continue
+                break
+    _state["last_error"] = str(last)[:500]
     raise LLMUnavailable(f"Gemini call failed: {last}")
+
+
+def test_connection() -> tuple[bool, str]:
+    """Used by the app's status panel."""
+    if is_mock():
+        return False, "No GEMINI_API_KEY found in the app's secrets."
+    try:
+        out = generate("Reply with the single word OK.", temperature=0)
+        return True, f"Connected · model {pick_model()} · reply: {out.strip()[:20]}"
+    except LLMUnavailable as e:
+        return False, str(e)[:400]
 
 
 def parse_json(text: str):

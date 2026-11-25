@@ -24,6 +24,26 @@ def glossary() -> list[dict]:
         return list(csv.DictReader(f))
 
 
+def backup_translate(text: str, target: str, source: str = "auto") -> str | None:
+    """Free Google Translate backup (no key). Used only when Gemini is unavailable."""
+    if not text or target == source:
+        return text
+    try:
+        from deep_translator import GoogleTranslator
+        parts, out = re.split(r"(?<=[.!?।])\s+", text), []
+        chunk = ""
+        for p in parts:                      # the service accepts ~5000 characters per call
+            if len(chunk) + len(p) > 4000:
+                out.append(GoogleTranslator(source=source, target=target).translate(chunk))
+                chunk = ""
+            chunk += p + " "
+        if chunk.strip():
+            out.append(GoogleTranslator(source=source, target=target).translate(chunk))
+        return " ".join(o for o in out if o)
+    except Exception:
+        return None
+
+
 def glossary_for(text: str, lang: str, limit: int = 40) -> list[tuple[str, str]]:
     if lang not in ("hi", "mr"):
         return []
@@ -68,7 +88,9 @@ def intake(text: str | None = None, audio: tuple[bytes, str] | None = None,
             return {"transcript": "", "language": "en", "english": "", "intent": "out_of_scope",
                     "topics": ["general"], "search_queries": [], "offline": True,
                     "error": "Voice needs the Gemini API key. Please type your question."}
-        return offline_intake(text or "", has_document)
+        res = offline_intake(text or "", has_document)
+        res["error_detail"] = llm.status()["last_error"]
+        return res
 
 
 # Simple offline understanding (used only when Gemini is unavailable).
@@ -100,7 +122,9 @@ def offline_intake(text: str, has_document: bool) -> dict:
             if topic not in topics:
                 topics.append(topic)
             queries.append(q)
-    english = text if lang == "en" else " ".join(queries) or text
+    english = text
+    if lang != "en":
+        english = backup_translate(text, "en") or " ".join(queries) or text
     intent = "document_question" if has_document else "rights_question"
     if not topics and re.match(r"^\s*(hi|hello|hey|namaste|नमस्ते|नमस्कार)\b", text, re.I):
         intent = "greeting"
@@ -140,8 +164,11 @@ def simplify_and_translate(answer_en: str, target_lang: str) -> dict:
         res["offline"] = False
         return res
     except llm.LLMUnavailable:
-        return {"plain_english": answer_en, "translated": answer_en, "speak_text": answer_en,
-                "glossary_used": terms, "offline": True}
+        translated = answer_en
+        if target_lang in ("hi", "mr"):
+            translated = backup_translate(answer_en, target_lang, "en") or answer_en
+        return {"plain_english": answer_en, "translated": translated, "speak_text": translated,
+                "glossary_used": terms, "offline": True, "error": llm.status()["last_error"]}
 
 
 def translate_list(items: list[str], target_lang: str) -> list[str]:
@@ -161,5 +188,7 @@ def translate_list(items: list[str], target_lang: str) -> list[str]:
         if len(out) == len(items):
             return out
     except llm.LLMUnavailable:
-        pass
+        out = [backup_translate(t, target_lang, "en") for t in items]
+        if all(out):
+            return out
     return items
