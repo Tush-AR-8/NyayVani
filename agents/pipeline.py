@@ -181,22 +181,12 @@ _GRAPH = None
 
 
 def run(kb, text: str | None = None, audio: tuple | None = None, document=None,
-        reply_lang: str = "auto", want_audio: bool = True, on_step=None) -> dict:
+        reply_lang: str = "auto", want_audio: bool = True) -> dict:
     global _GRAPH
     if _GRAPH is None:
         _GRAPH = build_graph()
     t0 = time.time()
-    init = {"text": text or "", "audio": audio, "document": document, "kb": kb,
-            "reply_lang": reply_lang, "want_audio": want_audio, "trace": []}
-    state = None
-    # stream the graph so the screen can show each agent's step as it really finishes
-    for snapshot in _GRAPH.stream(init, stream_mode="values"):
-        state = snapshot
-        if on_step:
-            try:
-                on_step(snapshot.get("trace", []), snapshot)
-            except Exception:
-                pass
-    state = dict(state)
+    state = _GRAPH.invoke({"text": text or "", "audio": audio, "document": document, "kb": kb,
+                           "reply_lang": reply_lang, "want_audio": want_audio, "trace": []})
     state["total_seconds"] = round(time.time() - t0, 2)
     return state

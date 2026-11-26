@@ -17,7 +17,19 @@ from core import config
 
 log = logging.getLogger("nyayvani.llm")
 
-_state = {"model": None, "embed_model": None, "last_error": ""}
+_state = {"model": None, "embed_model": None, "last_error": "", "dead": set()}
+
+# Current free-tier models (Nov 2026). Google retires names often, so the app also
+# reads Google's "please use model X" messages and switches automatically.
+PREFERRED_MODELS = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite",
+                    "gemini-3.1-flash-lite"]
+PREFERRED_EMBED = ["gemini-embedding-2", "gemini-embedding-001"]
+_SUGGEST = re.compile(r"use (?:the )?(?:models/)?(gemini-[a-z0-9.\-]+)", re.I)
+
+
+def _suggested(err) -> str | None:
+    m = _SUGGEST.search(str(err))
+    return m.group(1).rstrip(".") if m else None
 
 
 class LLMUnavailable(RuntimeError):
@@ -51,6 +63,7 @@ def candidate_models() -> list[str]:
     names = []
     if config.GEMINI_MODEL:
         names.append(config.GEMINI_MODEL)
+    names += PREFERRED_MODELS
     try:
         found = []
         for m in _client().models.list():
@@ -87,25 +100,21 @@ def _bad_model(err: Exception) -> bool:
                                 "free_tier", "not supported", "unsupported", "billing", "is not available"))
 
 
-def pick_embed_model() -> str:
-    if _state["embed_model"]:
-        return _state["embed_model"]
-    if config.GEMINI_EMBED_MODEL:
-        _state["embed_model"] = config.GEMINI_EMBED_MODEL
-        return _state["embed_model"]
-    chosen = "gemini-embedding-001"
+def embed_candidates() -> list[str]:
+    names = ([config.GEMINI_EMBED_MODEL] if config.GEMINI_EMBED_MODEL else []) + PREFERRED_EMBED
     try:
-        names = [(m.name or "").replace("models/", "") for m in _client().models.list()
-                 if "embedContent" in (getattr(m, "supported_actions", None) or [])]
-        if "gemini-embedding-001" in names:
-            chosen = "gemini-embedding-001"
-        elif names:
-            gem = [n for n in names if n.startswith("gemini-embedding")]
-            chosen = sorted(gem or names)[-1]
+        names += [(m.name or "").replace("models/", "") for m in _client().models.list()
+                  if "embedContent" in (getattr(m, "supported_actions", None) or [])
+                  and "gemini" in (m.name or "")]
     except Exception:
         pass
-    _state["embed_model"] = chosen
-    return chosen
+    return [n for n in dict.fromkeys(names) if n not in _state["dead"]]
+
+
+def pick_embed_model() -> str:
+    if not _state["embed_model"]:
+        _state["embed_model"] = embed_candidates()[0]
+    return _state["embed_model"]
 
 
 def _thinking_config(model: str):
@@ -135,10 +144,15 @@ def generate(prompt: str, *, system: str = "", parts: list | None = None,
         contents.append(types.Part.from_bytes(data=data, mime_type=mime))
     contents.append(prompt)
 
-    models = candidate_models()
-    start = models.index(pick_model()) if pick_model() in models else 0
-    last = None
-    for model in models[start:start + 5]:
+    queue = [m for m in candidate_models() if m not in _state["dead"]]
+    if _state["model"] and _state["model"] not in _state["dead"]:   # last working model first
+        if _state["model"] in queue:
+            queue.remove(_state["model"])
+        queue.insert(0, _state["model"])
+    tried, last = 0, None
+    while queue and tried < 6:
+        model = queue.pop(0)
+        tried += 1
         use_thinking = True
         delay = 2.0
         attempt = 0
@@ -162,11 +176,17 @@ def generate(prompt: str, *, system: str = "", parts: list | None = None,
             except Exception as e:
                 last = e
                 msg = str(e).lower()
+                if _bad_model(e) or "no longer available" in msg:
+                    _state["dead"].add(model)
+                    tip = _suggested(e)
+                    if tip and tip not in _state["dead"]:
+                        if tip in queue:
+                            queue.remove(tip)
+                        queue.insert(0, tip)   # follow Google's suggestion
+                    break                       # try the next model
                 if use_thinking and ("thinking" in msg or "invalid_argument" in msg or "400" in msg):
                     use_thinking = False   # this model does not accept the setting - retry without it
                     continue
-                if _bad_model(e):
-                    break                  # try the next model
                 if "api key" in msg or "api_key" in msg:
                     _state["last_error"] = str(e)
                     raise LLMUnavailable(f"Gemini API key problem: {e}")
@@ -210,35 +230,57 @@ def generate_json(prompt: str, **kw):
     try:
         return parse_json(text)
     except Exception:
-        # one repair attempt
-        fixed = generate("Return ONLY valid JSON for this content, no comments:\n" + text, json_mode=True)
+        pass
+    try:   # one repair attempt
+        fixed = generate("Return ONLY valid JSON for this content, no comments:\n" + text[:20000], json_mode=True)
         return parse_json(fixed)
+    except LLMUnavailable:
+        raise
+    except Exception as e:
+        raise LLMUnavailable(f"The AI reply could not be read as JSON: {e}")
 
 
 def embed(texts: list[str], task_type: str = "RETRIEVAL_DOCUMENT") -> list[list[float]]:
     if is_mock():
         raise LLMUnavailable("offline")
     from google.genai import types
-    model = pick_embed_model()
     out: list[list[float]] = []
     for i in range(0, len(texts), config.EMBED_BATCH):
         batch = [t[:6000] for t in texts[i:i + config.EMBED_BATCH]]
+        out.extend(_embed_batch(batch, task_type))
+    return out
+
+
+def _embed_batch(batch, task_type):
+    from google.genai import types
+    queue = [pick_embed_model()] + [m for m in embed_candidates() if m != pick_embed_model()]
+    last = None
+    while queue:
+        model = queue.pop(0)
         delay = 3.0
         for attempt in range(5):
             try:
                 res = _client().models.embed_content(
                     model=model, contents=batch,
                     config=types.EmbedContentConfig(task_type=task_type, output_dimensionality=768))
-                out.extend([e.values for e in res.embeddings])
-                break
+                _state["embed_model"] = model
+                return [e.values for e in res.embeddings]
             except Exception as e:
+                last = e
+                if _bad_model(e) or "no longer available" in str(e).lower():
+                    _state["dead"].add(model)
+                    tip = _suggested(e)
+                    if tip and tip not in _state["dead"] and tip not in queue:
+                        queue.insert(0, tip)
+                    break
                 if _is_retryable(e) and attempt < 4:
                     time.sleep(delay)
                     delay *= 2
                     continue
                 _state["last_error"] = str(e)
                 raise LLMUnavailable(f"Embedding failed: {e}")
-    return out
+    _state["last_error"] = str(last)
+    raise LLMUnavailable(f"Embedding failed: {last}")
 
 
 def status() -> dict:

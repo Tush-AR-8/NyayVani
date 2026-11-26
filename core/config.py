@@ -17,8 +17,19 @@ GLOSSARY_FILE = DATA_DIR / "glossary.csv"
 CHROMA_DIR = Path(os.environ.get("NYAYVANI_CHROMA_DIR", "/tmp/nyayvani_chroma"))
 
 # Optional overrides. If empty, the app picks the best free model automatically.
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "").strip()
-GEMINI_EMBED_MODEL = os.environ.get("GEMINI_EMBED_MODEL", "").strip()
+def _setting(name: str) -> str:
+    val = os.environ.get(name, "").strip()
+    if not val:
+        try:
+            import streamlit as st
+            val = str(st.secrets.get(name, "")).strip()
+        except Exception:
+            val = ""
+    return val
+
+
+GEMINI_MODEL = _setting("GEMINI_MODEL")
+GEMINI_EMBED_MODEL = _setting("GEMINI_EMBED_MODEL")
 
 # Force offline demo mode (rule-based answers, no API calls) - used for testing.
 FORCE_MOCK = os.environ.get("NYAYVANI_MOCK", "").strip() in ("1", "true", "yes")

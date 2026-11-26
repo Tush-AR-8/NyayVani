@@ -136,65 +136,10 @@ def _cid(*parts) -> str:
     return hashlib.md5("|".join(parts).encode()).hexdigest()[:16]
 
 
-# Official sources. The app downloads these itself on first start (cached in /tmp),
-# so nobody has to download PDFs by hand. Files placed in data/acts are used too.
-ACT_SOURCES = {
-    "code_on_social_security_2020.pdf": [
-        "https://www.indiacode.nic.in/bitstream/123456789/16823/1/aA2020-36.pdf",
-        "https://prsindia.org/files/bills_acts/acts_parliament/2020/Code%20On%20Social%20Security,%202020.pdf"],
-    "code_on_wages_2019.pdf": [
-        "https://www.indiacode.nic.in/bitstream/123456789/15793/1/aA2019-29.pdf"],
-    "posh_act_2013_sexual_harassment.pdf": [
-        "https://ncte.gov.in/Website/PDF/A2013-14.pdf"],
-    "indian_contract_act_1872.pdf": [
-        "https://indiacode.nic.in/bitstream/123456789/2187/2/A187209.pdf",
-        "https://comtax.up.nic.in/Miscellaneous%20Act/the-indian-contract-act-1872.pdf"],
-    "digital_personal_data_protection_act_2023.pdf": [
-        "https://www.indiacode.nic.in/bitstream/123456789/22037/2/a2023-22.pdf",
-        "https://www.trai.gov.in/sites/default/files/2024-09/DPDT_11082024.pdf"],
-}
-ACTS_CACHE = config.CHROMA_DIR.parent / "nyayvani_acts"
-DOWNLOAD_LOG: dict[str, str] = {}
-
-
-def download_acts() -> dict[str, str]:
-    """Fetch any Act PDF that is not already present. Never raises."""
-    import urllib.request
-    ACTS_CACHE.mkdir(parents=True, exist_ok=True)
-    local = {p.name for p in config.ACTS_DIR.glob("*.pdf")} if config.ACTS_DIR.exists() else set()
-    for fname, urls in ACT_SOURCES.items():
-        key = fname.split("_")[0]
-        if any(key in n.lower() for n in local) and fname in local:
-            DOWNLOAD_LOG[fname] = "found in data/acts"
-            continue
-        target = ACTS_CACHE / fname
-        if target.exists() and target.stat().st_size > 10_000:
-            DOWNLOAD_LOG[fname] = "already downloaded"
-            continue
-        for url in urls:
-            try:
-                req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (NyayVani student project)"})
-                with urllib.request.urlopen(req, timeout=25) as r:
-                    data = r.read()
-                if data[:4] == b"%PDF" and len(data) > 10_000:
-                    target.write_bytes(data)
-                    DOWNLOAD_LOG[fname] = f"downloaded from {url.split('/')[2]}"
-                    break
-                DOWNLOAD_LOG[fname] = f"not a PDF at {url.split('/')[2]}"
-            except Exception as e:
-                DOWNLOAD_LOG[fname] = f"download failed ({type(e).__name__})"
-    return DOWNLOAD_LOG
-
-
 def load_act_pdfs() -> list[Chunk]:
     import pymupdf
     chunks: list[Chunk] = []
-    paths = []
-    for folder in (config.ACTS_DIR, ACTS_CACHE):
-        if folder.exists():
-            paths += sorted(folder.glob("*"))
-    seen_acts = set()
-    for path in paths:
+    for path in sorted(config.ACTS_DIR.glob("*")):
         if path.suffix.lower() not in (".pdf", ".txt"):
             continue
         try:
@@ -208,9 +153,6 @@ def load_act_pdfs() -> list[Chunk]:
             continue
         # India Code PDFs sometimes contain Hindi + English; keep English pages.
         act, short = _identify_act(path.name, text)
-        if act in seen_acts:          # same Act in data/acts and in the download cache
-            continue
-        seen_acts.add(act)
         chunks.extend(split_act(text, act, short, path.name))
     return chunks
 
@@ -254,54 +196,21 @@ class KnowledgeBase:
         self.vector_ready = False
         self.vector_error = ""
         self.acts: dict[str, int] = {}
-        self.status = "starting"
 
     # build ----------------------------------------------------------
     def build(self, progress=None):
-        """Full build in one go (used by tests and evaluation scripts)."""
-        download_acts()
-        self._index(load_act_pdfs())
-        self._build_vectors(progress)
-        self.status = "ready"
-        return self
-
-    def build_fast(self):
-        """Start in seconds: rights checklist + any Acts already on disk, keyword search only."""
-        self._index(load_act_pdfs())
-        self.status = "loading"
-        return self
-
-    def start_background(self):
-        """Download the Acts and build meaning search without blocking the app."""
-        import threading
-        if getattr(self, "_thread", None) and self._thread.is_alive():
-            return
-
-        def work():
-            try:
-                self.status = "downloading the Acts"
-                download_acts()
-                self.status = "reading the Acts"
-                self._index(load_act_pdfs())
-                self.status = "indexing for meaning search"
-                self._build_vectors(lambda p, t: setattr(self, "status", t))
-            except Exception as e:  # never break the app
-                self.vector_error = str(e)[:300]
-            finally:
-                self.status = "ready"
-
-        self._thread = threading.Thread(target=work, daemon=True)
-        self._thread.start()
-
-    def _index(self, act_chunks):
         from rank_bm25 import BM25Okapi
-        chunks = act_chunks + checklist_chunks()
-        acts = {}
+        act_chunks = load_act_pdfs()
+        self.chunks = act_chunks + checklist_chunks()
+        self.acts = {}
         for c in act_chunks:
-            acts[c.act] = acts.get(c.act, 0) + 1
-        bm25 = BM25Okapi([_tokens(f"{c.title} {c.title} {c.text}") for c in chunks])
-        # swap in one step so searches running at the same time stay consistent
-        self.chunks, self.bm25, self.acts = chunks, bm25, acts
+            self.acts[c.act] = self.acts.get(c.act, 0) + 1
+        corpus = [_tokens(f"{c.title} {c.title} {c.text}") for c in self.chunks]
+        self.bm25 = BM25Okapi(corpus)
+        if progress:
+            progress(0.3, "Keyword index ready")
+        self._build_vectors(progress)
+        return self
 
     def _build_vectors(self, progress=None):
         if llm.is_mock():
@@ -394,15 +303,6 @@ class KnowledgeBase:
         results.sort(key=lambda d: d["score"], reverse=True)
         return results[:k]
 
-    def has_section(self, act: str, section: str) -> bool:
-        return any(c.source == "act" and c.act == act and c.section == str(section) for c in self.chunks)
-
-    def section_title(self, act: str, section: str) -> str:
-        for c in self.chunks:
-            if c.source == "act" and c.act == act and c.section == str(section):
-                return c.title
-        return ""
-
     def stats(self) -> dict:
         return {
             "acts": self.acts,
@@ -410,6 +310,4 @@ class KnowledgeBase:
             "official_chunks": sum(1 for c in self.chunks if c.source == "act"),
             "vector_search": self.vector_ready,
             "vector_note": self.vector_error,
-            "downloads": dict(DOWNLOAD_LOG),
-            "status": self.status,
         }

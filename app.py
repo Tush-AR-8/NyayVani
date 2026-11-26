@@ -28,7 +28,7 @@ st.html("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600&family=Noto+Sans+Devanagari:wght@400;500;600&family=Noto+Serif:wght@500;600&family=Noto+Serif+Devanagari:wght@500;600;700&display=swap');
 :root{
-  --paper:#F6F7F9; --surface:#FFFFFF; --ink:#1D2133; --ink2:#4A5068; --ink3:#6A7084;
+  --paper:#F6F7F9; --surface:#FFFFFF; --ink:#1D2133; --ink2:#4A5068; --ink3:#767C90;
   --rule:#E1E4EB; --indigo:#33358C; --indigo-tint:#EDEDF7;
   --ok:#2E6B4E; --ok-tint:#E8F2EC; --warn:#8F560C; --warn-tint:#FBF1E3; --risk:#9E2F2A; --risk-tint:#F9E9E8;
   --sans:'Noto Sans','Noto Sans Devanagari',system-ui,sans-serif;
@@ -40,7 +40,7 @@ html, body, .stApp, [data-testid="stAppViewContainer"], button, input, textarea,
 [data-testid="stHeader"] { background: transparent; }
 #MainMenu, footer, [data-testid="stDecoration"] { display: none !important; }
 .block-container { padding-top: 2.2rem; padding-bottom: 4rem; max-width: 1180px; }
-p, li { line-height: 1.6; } .stMarkdown p, .stMarkdown li { font-size:1rem; }
+p, li { line-height: 1.6; }
 a { color: var(--indigo); }
 
 /* masthead */
@@ -75,10 +75,7 @@ a { color: var(--indigo); }
 .stButton button[kind="primary"]:hover, .stFormSubmitButton button:hover { background:#26286E; border-color:#26286E; color:#fff; }
 .stButton button[kind="tertiary"] { border:none !important; background:transparent; color:var(--indigo); padding:.1rem 0; min-height:0; text-align:left; justify-content:flex-start; }
 .stButton button[kind="tertiary"]:hover { text-decoration:underline; color:var(--indigo); }
-.stButton button, .stFormSubmitButton button, .stDownloadButton button { min-height:44px; cursor:pointer; transition:background-color .18s ease, border-color .18s ease, color .18s ease; }
-.stButton button[kind="tertiary"] { min-height:32px; }
-button:focus-visible, [role="tab"]:focus-visible, summary:focus-visible, input:focus-visible, textarea:focus-visible { outline:3px solid var(--indigo) !important; outline-offset:2px; }
-details.nv-f summary { min-height:28px; }
+.stButton button:focus-visible, .stFormSubmitButton button:focus-visible { outline:2px solid var(--indigo); outline-offset:2px; }
 [data-testid="stTextInputRootElement"], [data-baseweb="input"] { border-radius:6px; }
 [data-testid="stFileUploaderDropzone"] { background:var(--paper); border:1px dashed #C9CDD8; border-radius:8px; }
 [data-testid="stForm"] { border:none; padding:0; }
@@ -130,78 +127,6 @@ details.nv-f p { margin:.6rem 0 0 0; font-size:.95rem; } details.nv-f .rule { co
 [data-testid="stExpander"] summary p { font-size:.9rem; color:var(--ink2); }
 [data-testid="stSidebar"] { background:var(--surface); border-right:1px solid var(--rule); }
 @media (max-width: 760px){ .nv-word{font-size:2.3rem;} .nv-counts{gap:1.4rem;} }
-/* ===== opening animation: the name is stamped in indigo ink ===== */
-.nv-splash{position:fixed;inset:0;z-index:999999;background:var(--paper);display:flex;flex-direction:column;align-items:center;justify-content:center;
-  animation:nvOut .55s ease 2.5s forwards;pointer-events:none;}
-.nv-splash .seal{position:relative;padding:1.2rem 2.4rem;}
-.nv-splash .seal::before{content:"";position:absolute;inset:0;border:2px solid var(--indigo);border-radius:14px;opacity:0;transform:scale(1.25) rotate(-2deg);
-  animation:nvSeal .7s cubic-bezier(.2,.9,.25,1) .55s forwards;}
-.nv-splash .w{font-family:'Noto Serif Devanagari',var(--serif);font-weight:700;font-size:clamp(3.2rem,9vw,6.2rem);line-height:1.1;color:var(--indigo);
-  animation:nvStamp .7s cubic-bezier(.2,.9,.3,1.15) .1s both;}
-.nv-splash .rule{height:2px;background:var(--indigo);width:0;margin:1.1rem 0 .9rem;animation:nvRule .7s ease 1.05s forwards;}
-.nv-splash .t{font-family:var(--serif);font-size:1.15rem;color:var(--ink2);opacity:0;animation:nvFade .6s ease 1.45s forwards;}
-@keyframes nvStamp{0%{opacity:0;transform:scale(1.4);filter:blur(8px)}55%{opacity:1;transform:scale(.96);filter:blur(0)}100%{opacity:1;transform:scale(1)}}
-@keyframes nvSeal{to{opacity:.9;transform:scale(1) rotate(-2deg)}}
-@keyframes nvRule{to{width:min(16rem,60vw)}}
-@keyframes nvFade{to{opacity:1}}
-@keyframes nvOut{to{opacity:0;visibility:hidden}}
-@keyframes nvUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
-
-/* ===== top bar ===== */
-.nv-bar{display:flex;align-items:baseline;gap:.7rem;}
-.nv-bar .w{font-family:'Noto Serif Devanagari',var(--serif);font-weight:700;font-size:1.9rem;color:var(--indigo);line-height:1;}
-.nv-bar .l{font-family:var(--serif);font-size:1.05rem;color:var(--ink2);}
-
-/* ===== landing ===== */
-.stMarkdown p.nv-kicker, .nv-kicker{color:var(--indigo);font-weight:600;font-size:.95rem;margin:0 0 .2rem;}
-.stMarkdown p.nv-hero-h, .nv-hero-h{font-family:var(--serif);font-weight:600;font-size:clamp(2.1rem,3.7vw,3.1rem);line-height:1.13;letter-spacing:-.012em;color:var(--ink);margin:.2rem 0 1rem;}
-.stMarkdown p.nv-hero-p, .nv-hero-p{font-size:1.1rem;line-height:1.65;color:var(--ink2);max-width:34rem;margin:0 0 1.4rem;}
-.nv-facts{display:flex;gap:2.4rem;margin:1.6rem 0 .4rem;padding-top:1.2rem;border-top:1px solid var(--rule);max-width:34rem;}
-.nv-fact b{font-family:var(--serif);font-weight:600;font-size:1.75rem;color:var(--indigo);display:block;line-height:1.1;}
-.nv-fact span{font-size:.86rem;color:var(--ink3);}
-.nv-demo{background:var(--surface);border:1px solid var(--rule);border-radius:14px;padding:1.5rem 1.6rem 1.3rem;
-  box-shadow:0 30px 60px -40px rgba(29,33,51,.45);}
-.nv-demo .cap{font-size:.8rem;color:var(--ink3);display:flex;justify-content:space-between;margin-bottom:1rem;}
-.nv-demo .q{color:var(--ink2);padding-left:.8rem;border-left:2px solid var(--rule);margin-bottom:.9rem;}
-.nv-demo .a{font-family:'Noto Serif Devanagari',var(--serif);font-size:1.08rem;line-height:1.75;color:var(--ink);margin:.7rem 0;}
-.nv-demo .c{font-family:var(--serif);font-style:italic;color:var(--ink2);background:var(--paper);border-left:3px solid var(--warn);padding:.5rem .8rem;border-radius:0 6px 6px 0;font-size:.93rem;}
-.nv-demo .law{display:flex;justify-content:space-between;border-top:1px solid var(--rule);margin-top:.9rem;padding-top:.6rem;font-size:.9rem;}
-.nv-demo .wave{display:inline-flex;gap:3px;align-items:center;height:14px;margin-left:.5rem;vertical-align:-2px;}
-.nv-demo .wave i{display:block;width:3px;background:var(--indigo);border-radius:2px;height:5px;animation:nvWave 1.1s ease-in-out infinite;}
-.nv-demo .wave i:nth-child(2){animation-delay:.15s}.nv-demo .wave i:nth-child(3){animation-delay:.3s}.nv-demo .wave i:nth-child(4){animation-delay:.45s}
-@keyframes nvWave{0%,100%{height:4px}50%{height:14px}}
-.nv-anim .r{opacity:0;animation:nvUp .55s ease forwards;}
-.nv-anim .r1{animation-delay:2.7s}.nv-anim .r2{animation-delay:2.85s}.nv-anim .r3{animation-delay:3.0s}.nv-anim .r4{animation-delay:3.15s}
-.nv-anim .d1{animation-delay:3.2s}.nv-anim .d2{animation-delay:3.7s}.nv-anim .d3{animation-delay:4.2s}.nv-anim .d4{animation-delay:4.7s}
-.nv-steps-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin:2rem 0 2.2rem;padding:1.2rem 0;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);}
-.nv-steps-strip div b{display:block;font-family:var(--serif);font-weight:600;font-size:1rem;color:var(--ink);margin-bottom:.15rem;}
-.nv-steps-strip div span{font-size:.88rem;color:var(--ink3);line-height:1.45;display:block;}
-.nv-steps-strip div em{font-style:normal;color:var(--indigo);font-weight:600;font-size:.85rem;display:block;margin-bottom:.3rem;}
-
-/* ===== loaders ===== */
-.nv-boot{min-height:60vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.1rem;}
-.nv-boot .w{font-family:'Noto Serif Devanagari',var(--serif);font-weight:700;font-size:3.2rem;color:var(--indigo);animation:nvBreath 2.2s ease-in-out infinite;}
-.nv-boot .bar{width:14rem;height:2px;background:var(--rule);overflow:hidden;border-radius:2px;}
-.nv-boot .bar i{display:block;height:100%;width:40%;background:var(--indigo);animation:nvSlide 1.4s ease-in-out infinite;}
-.nv-boot .msg{position:relative;height:1.4rem;width:24rem;text-align:center;color:var(--ink2);font-size:.95rem;}
-.nv-boot .msg span{position:absolute;inset:0;opacity:0;animation:nvCycle 9s linear infinite;}
-.nv-boot .msg span:nth-child(2){animation-delay:3s}.nv-boot .msg span:nth-child(3){animation-delay:6s}
-@keyframes nvBreath{0%,100%{opacity:1}50%{opacity:.55}}
-@keyframes nvSlide{0%{transform:translateX(-100%)}100%{transform:translateX(260%)}}
-@keyframes nvCycle{0%{opacity:0}5%,30%{opacity:1}35%,100%{opacity:0}}
-.nv-progress{background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:1.4rem 1.6rem;}
-.nv-progress .h{font-family:var(--serif);font-weight:600;font-size:1.1rem;margin-bottom:.9rem;}
-.nv-step{display:flex;align-items:center;gap:.8rem;padding:.45rem 0;color:var(--ink3);font-size:.97rem;}
-.nv-step .dot{width:18px;height:18px;border-radius:50%;border:2px solid var(--rule);flex:none;position:relative;}
-.nv-step.done{color:var(--ink);} .nv-step.done .dot{background:var(--indigo);border-color:var(--indigo);}
-.nv-step.done .dot::after{content:"";position:absolute;left:4px;top:1px;width:5px;height:9px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg);}
-.nv-step.now{color:var(--indigo);font-weight:500;} .nv-step.now .dot{border-color:var(--indigo);border-top-color:transparent;animation:nvSpin .8s linear infinite;}
-.nv-step small{color:var(--ink3);margin-left:auto;font-size:.8rem;}
-@keyframes nvSpin{to{transform:rotate(360deg)}}
-[class*="st-key-answer-0"]{animation:nvUp .45s ease both;}
-@media (max-width: 900px){ .nv-steps-strip{grid-template-columns:1fr 1fr;} .nv-facts{gap:1.4rem;} }
-@media (prefers-reduced-motion: reduce){ .nv-splash{display:none;} .nv-anim .r, .nv-demo .wave i{opacity:1;animation:none;} }
-
 @media (prefers-reduced-motion: reduce){ *{transition:none !important; animation:none !important;} }
 </style>""")
 
@@ -234,11 +159,9 @@ esc = html.escape
 
 # ------------------------------------------------------------------ resources & state
 
-@st.cache_resource(show_spinner=False)
+@st.cache_resource(show_spinner="Preparing the legal knowledge base. The first start takes about a minute.")
 def get_kb():
-    kb = KnowledgeBase().build_fast()      # ready in seconds
-    kb.start_background()                  # Acts download + meaning search continue in the background
-    return kb
+    return KnowledgeBase().build()
 
 
 @st.cache_data(show_spinner=False, ttl=600)
@@ -256,93 +179,30 @@ for k, v in {"history": [], "doc": None, "check": None, "last_audio": None, "upl
              "last_upload": None, "last_sample": None}.items():
     ss.setdefault(k, v)
 
-first_view = not ss.get("splash_done")
-if first_view:
-    st.markdown('<div class="nv-splash"><div class="seal"><div class="w">न्यायवाणी</div></div>'
-                '<div class="rule"></div><div class="t">Your rights, in your language</div></div>', unsafe_allow_html=True)
-    ss.splash_done = True
-
-if not ss.get("kb_ready"):
-    boot = st.empty()
-    boot.markdown('<div class="nv-boot"><div class="w">न्यायवाणी</div><div class="bar"><i></i></div>'
-                  '<div class="msg"><span>Opening the law library</span><span>Preparing the rights checklist</span>'
-                  '<span>Almost ready</span></div></div>', unsafe_allow_html=True)
-    kb = get_kb()
-    boot.empty()
-    ss.kb_ready = True
-else:
-    kb = get_kb()
+kb = get_kb()
 stats = kb.stats()
 key_fp = hashlib.md5(config.get_api_key().encode()).hexdigest()[:8]
 ok, conn_msg = (False, "No API key") if llm.is_mock() else connection_check(key_fp)
 
-# ------------------------------------------------------------------ top bar
+# ------------------------------------------------------------------ masthead
 
-bar_l, bar_r = st.columns([0.55, 0.45], vertical_alignment="center")
-with bar_l:
-    st.markdown('<div class="nv-bar"><span class="w">न्यायवाणी</span><span class="l">NyayVani</span></div>',
-                unsafe_allow_html=True)
-with bar_r:
-    s1, s2 = st.columns([0.36, 0.64], vertical_alignment="center")
-    @st.fragment(run_every=5)
-    def status_badge():
-        dot = "var(--ok)" if ok else "var(--warn)"
-        label = "AI connected" if ok else ("Backup mode" if config.get_api_key() else "Backup mode: no key")
-        if kb.status != "ready":
-            dot, label = "var(--indigo)", "Loading the law library…"
-        st.markdown(f'<div class="nv-status" style="margin:0"><span class="nv-dot" style="background:{dot}"></span>{label}</div>',
-                    unsafe_allow_html=True)
-    with s1:
-        status_badge()
-    with s2:
-        lang = st.segmented_control("Answer language", ["auto", "hi", "mr", "en"], default="auto", key="lang",
-                                    format_func=lambda k: {"auto": "Auto", "hi": "हिन्दी", "mr": "मराठी",
-                                                           "en": "English"}[k],
-                                    label_visibility="collapsed") or "auto"
-
-# ------------------------------------------------------------------ landing (until the first question)
-
-if not ss.history:
-    anim = "nv-anim" if first_view else ""
-    h_l, h_r = st.columns([0.53, 0.47], gap="large", vertical_alignment="center")
-    with h_l:
-        st.markdown(
-            f'<div class="{anim}" style="padding-top:1.6rem">'
-            '<p class="nv-kicker r r1">Legal help for women at work, in Hindi and Marathi</p>'
-            '<p class="nv-hero-h r r2">Understand your offer letter before you sign it.</p>'
-            '<p class="nv-hero-p r r3">Upload your offer letter, HR policy or rent agreement and ask in your own language, '
-            'by voice or text. NyayVani checks it against Indian law and answers in simple words, '
-            'with the exact Act and section.</p></div>', unsafe_allow_html=True)
-        if st.button("Try it with a sample offer letter", type="primary", key="hero_try"):
-            ss.doc, ss.check = load_sample(SAMPLES["Offer letter with problems"]), None
-            ss.last_sample = "Offer letter with problems"
-            ss.hero_ask = EXAMPLES[0]
-        st.markdown(
-            f'<div class="{anim}"><div class="nv-facts r r4">'
-            f'<div class="nv-fact"><b>5</b><span>Indian Acts searched</span></div>'
-            f'<div class="nv-fact"><b>{len(rc.RULES)}</b><span>workplace rights checked</span></div>'
-            '<div class="nv-fact"><b>3</b><span>languages, voice or text</span></div></div></div>',
-            unsafe_allow_html=True)
-    with h_r:
-        st.markdown(
-            f'<div class="nv-demo {anim}">'
-            '<div class="cap"><span>Example answer</span><span>Offer letter, clause 6</span></div>'
-            '<div class="q r d1">मेरी मैटरनिटी लीव कितनी होगी?<span class="wave"><i></i><i></i><i></i><i></i></span></div>'
-            '<span class="nv-verdict v-attn r d2">ध्यान देने योग्य</span>'
-            '<div class="a r d2">आपके ऑफर लेटर में केवल 12 हफ्ते लिखे हैं, लेकिन कानून के अनुसार आपको 26 हफ्ते तक का '
-            'सवेतन मातृत्व अवकाश (maternity leave) मिलना चाहिए।</div>'
-            '<div class="c r d3">“Female employees … shall be entitled to 12 weeks of maternity leave.”</div>'
-            '<div class="law r d4"><span><b>Code on Social Security, 2020</b>, Section 60</span>'
-            '<span class="nv-tick">✓ कानून में सत्यापित</span></div></div>', unsafe_allow_html=True)
+top_l, top_r = st.columns([0.62, 0.38], vertical_alignment="bottom")
+with top_l:
     st.markdown(
-        '<div class="nv-steps-strip">'
-        '<div><em>Step 1</em><b>Speak or type</b><span>Ask in Hindi, Marathi, Hinglish or English.</span></div>'
-        '<div><em>Step 2</em><b>The law is found</b><span>The right sections of Indian Acts are retrieved.</span></div>'
-        '<div><em>Step 3</em><b>Your document is checked</b><span>Each clause is compared with what the law requires.</span></div>'
-        '<div><em>Step 4</em><b>A simple answer</b><span>In your language, read aloud, with the law cited.</span></div>'
-        '</div>', unsafe_allow_html=True)
-else:
-    st.write("")
+        '<div class="nv-mast"><div class="nv-word">न्यायवाणी</div><div class="nv-latin">NyayVani</div></div>'
+        '<p class="nv-lede">Ask about your rights at work, or about a document you have been asked to sign. '
+        'Speak or type in Hindi, Marathi or English. Every answer names the Indian law it comes from.</p>',
+        unsafe_allow_html=True)
+with top_r:
+    dot = "var(--ok)" if ok else "var(--warn)"
+    label = "AI connected" if ok else ("Backup mode: AI unavailable" if config.get_api_key() else "Backup mode: no API key")
+    st.markdown(f'<div class="nv-status"><span class="nv-dot" style="background:{dot}"></span>{label}</div>',
+                unsafe_allow_html=True)
+    lang = st.segmented_control("Answer language", ["auto", "hi", "mr", "en"], default="auto", key="lang",
+                                format_func=lambda k: {"auto": "Same as question", "hi": "हिन्दी", "mr": "मराठी",
+                                                       "en": "English"}[k],
+                                label_visibility="collapsed") or "auto"
+st.write("")
 
 # ------------------------------------------------------------------ sidebar: system status
 
@@ -373,43 +233,15 @@ def remove_document():
     ss.last_upload, ss.last_sample = None, None
 
 
-STEP_LABELS = [("1-2", "Understanding your question"), ("3", "Finding the law"),
-               ("4", "Checking against the law"), ("5-6", "Writing a simple answer in your language"),
-               ("7", "Preparing the audio")]
-PROGRESS_SLOT = {"slot": None}
-
-
-def _progress_html(trace):
-    done = {t["step"].split(" ")[0]: t for t in trace}
-    rows, current_set = [], False
-    for key, label in STEP_LABELS:
-        if key == "3" and "4" in done and "3" not in done:   # greeting/document-check paths skip retrieval
-            continue
-        if key in done:
-            rows.append(f'<div class="nv-step done"><span class="dot"></span>{label}<small>{done[key]["seconds"]} s</small></div>')
-        elif not current_set:
-            rows.append(f'<div class="nv-step now"><span class="dot"></span>{label}</div>')
-            current_set = True
-        else:
-            rows.append(f'<div class="nv-step"><span class="dot"></span>{label}</div>')
-    return '<div class="nv-progress"><div class="h">Preparing your answer</div>' + "".join(rows) + "</div>"
-
-
 def ask(text=None, audio=None):
-    slot = PROGRESS_SLOT["slot"] or st.empty()
-    slot.markdown(_progress_html([]), unsafe_allow_html=True)
-    try:
-        state = pipeline.run(kb, text=text, audio=audio, document=ss.doc, reply_lang=lang,
-                             want_audio=speak_answers,
-                             on_step=lambda trace, _s: slot.markdown(_progress_html(trace), unsafe_allow_html=True))
-    except Exception as e:
-        slot.empty()
-        st.error(f"The answer could not be prepared: {e}")
-        return
-    slot.empty()
+    with st.spinner("Reading the law and preparing your answer…"):
+        try:
+            state = pipeline.run(kb, text=text, audio=audio, document=ss.doc, reply_lang=lang,
+                                 want_audio=speak_answers)
+        except Exception as e:
+            st.error(f"The answer could not be prepared: {e}")
+            return
     ss.history.insert(0, {"question": text or "", "state": state, "audio": state.get("audio_out")})
-    if len(ss.history) == 1:
-        st.rerun()      # first answer: hide the landing section
 
 
 def render_answer(turn: dict, idx: int):
@@ -470,10 +302,6 @@ tab_ask, tab_check, tab_how, tab_eval = st.tabs(["Ask", "Check a document", "How
 
 with tab_ask:
     left, right = st.columns([0.42, 0.58], gap="large")
-    with right:
-        PROGRESS_SLOT["slot"] = st.empty()
-    if ss.pop("hero_ask", None):
-        ask(text=EXAMPLES[0])
     with left:
         with st.container(key="panel-doc"):
             st.markdown('<p class="nv-h">Your document</p>'
@@ -615,10 +443,10 @@ with tab_how:
     st.graphviz_chart("""
     digraph G { rankdir=LR; bgcolor="transparent"; nodesep=0.35; ranksep=0.45;
       node [shape=box style="rounded,filled" fontname="Helvetica" fontsize=11 color="#33358C" fillcolor="#EDEDF7" fontcolor="#1D2133" penwidth=1.2];
-      edge [color="#6A7084" arrowsize=0.7];
+      edge [color="#767C90" arrowsize=0.7];
       user [label="1  User speaks or types\\nHindi, Marathi, Hinglish"];
       intake [label="2  Intake Agent\\nspeech to text, language,\\ntranslation to English"];
-      router [label="Router" shape=diamond fillcolor="#FFFFFF" color="#6A7084"];
+      router [label="Router" shape=diamond fillcolor="#FFFFFF" color="#767C90"];
       node [color="#1D2133" fillcolor="#FFFFFF"];
       rag [label="3  Retriever\\nIndian Acts, keyword\\nand meaning search"];
       women [label="4  Women at Workplace Agent\\nmaternity, POSH, equal pay"];
@@ -627,8 +455,8 @@ with tab_how:
       node [color="#33358C" fillcolor="#EDEDF7"];
       simp [label="5-6  Simplifier Agent\\nplain English, then\\ntranslation with glossary"];
       tts [label="7  Answer shown\\nand read aloud"];
-      doc [label="Document reader\\nPDF or photo to clauses" style="rounded,dashed" fillcolor="#FFFFFF" color="#6A7084"];
-      user -> intake -> router; router -> rag [label=" law question" fontsize=9 fontcolor="#6A7084"]; router -> check [label=" check all" fontsize=9 fontcolor="#6A7084"];
+      doc [label="Document reader\\nPDF or photo to clauses" style="rounded,dashed" fillcolor="#FFFFFF" color="#767C90"];
+      user -> intake -> router; router -> rag [label=" law question" fontsize=9 fontcolor="#767C90"]; router -> check [label=" check all" fontsize=9 fontcolor="#767C90"];
       rag -> women; rag -> contract; women -> simp; contract -> simp; check -> simp; simp -> tts;
       doc -> women [style=dashed]; doc -> contract [style=dashed]; doc -> check [style=dashed];
     }""", width="stretch")
@@ -651,15 +479,10 @@ with tab_how:
                          hide_index=True, width="stretch")
         else:
             st.caption("No Act PDFs loaded yet; the rights checklist is used.")
-        if stats.get("downloads"):
-            st.caption("Official PDFs: " + "; ".join(f"{k.split('.')[0].replace('_', ' ')}: {v}" for k, v in stats["downloads"].items()))
     with c2:
-        st.markdown('<p class="nv-label">Rights checklist, checked against the official Act text</p>', unsafe_allow_html=True)
+        st.markdown('<p class="nv-label">Rights checklist</p>', unsafe_allow_html=True)
         st.dataframe(pd.DataFrame([{"Topic": rc.TOPIC_LABELS[r["topic"]], "Right": r["title"],
-                                    "Law": f"{r['act'].split('(')[0].strip()}, s.{r['section']}",
-                                    "Found in Act text": (f"Yes: {kb.section_title(r['act'], r['section'])[:40]}"
-                                                          if kb.has_section(r["act"], r["section"]) else "Not loaded")}
-                                   for r in rc.RULES]),
+                                    "Law": f"{r['act'].split('(')[0].strip()}, s.{r['section']}"} for r in rc.RULES]),
                      hide_index=True, width="stretch", height=320)
 
 # ------------------------------------------------------------------ evaluation
