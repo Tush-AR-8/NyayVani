@@ -236,7 +236,9 @@ esc = html.escape
 
 @st.cache_resource(show_spinner=False)
 def get_kb():
-    return KnowledgeBase().build()
+    kb = KnowledgeBase().build_fast()      # ready in seconds
+    kb.start_background()                  # Acts download + meaning search continue in the background
+    return kb
 
 
 @st.cache_data(show_spinner=False, ttl=600)
@@ -263,9 +265,8 @@ if first_view:
 if not ss.get("kb_ready"):
     boot = st.empty()
     boot.markdown('<div class="nv-boot"><div class="w">न्यायवाणी</div><div class="bar"><i></i></div>'
-                  '<div class="msg"><span>Downloading the Indian Acts from India Code</span>'
-                  '<span>Splitting every Act into sections</span><span>Indexing the law for search</span></div></div>',
-                  unsafe_allow_html=True)
+                  '<div class="msg"><span>Opening the law library</span><span>Preparing the rights checklist</span>'
+                  '<span>Almost ready</span></div></div>', unsafe_allow_html=True)
     kb = get_kb()
     boot.empty()
     ss.kb_ready = True
@@ -283,10 +284,16 @@ with bar_l:
                 unsafe_allow_html=True)
 with bar_r:
     s1, s2 = st.columns([0.36, 0.64], vertical_alignment="center")
-    dot = "var(--ok)" if ok else "var(--warn)"
-    label = "AI connected" if ok else ("Backup mode" if config.get_api_key() else "Backup mode: no key")
-    s1.markdown(f'<div class="nv-status" style="margin:0"><span class="nv-dot" style="background:{dot}"></span>{label}</div>',
-                unsafe_allow_html=True)
+    @st.fragment(run_every=5)
+    def status_badge():
+        dot = "var(--ok)" if ok else "var(--warn)"
+        label = "AI connected" if ok else ("Backup mode" if config.get_api_key() else "Backup mode: no key")
+        if kb.status != "ready":
+            dot, label = "var(--indigo)", "Loading the law library…"
+        st.markdown(f'<div class="nv-status" style="margin:0"><span class="nv-dot" style="background:{dot}"></span>{label}</div>',
+                    unsafe_allow_html=True)
+    with s1:
+        status_badge()
     with s2:
         lang = st.segmented_control("Answer language", ["auto", "hi", "mr", "en"], default="auto", key="lang",
                                     format_func=lambda k: {"auto": "Auto", "hi": "हिन्दी", "mr": "मराठी",

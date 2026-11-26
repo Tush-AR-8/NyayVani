@@ -174,7 +174,7 @@ def download_acts() -> dict[str, str]:
         for url in urls:
             try:
                 req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (NyayVani student project)"})
-                with urllib.request.urlopen(req, timeout=45) as r:
+                with urllib.request.urlopen(req, timeout=25) as r:
                     data = r.read()
                 if data[:4] == b"%PDF" and len(data) > 10_000:
                     target.write_bytes(data)
@@ -254,22 +254,54 @@ class KnowledgeBase:
         self.vector_ready = False
         self.vector_error = ""
         self.acts: dict[str, int] = {}
+        self.status = "starting"
 
     # build ----------------------------------------------------------
     def build(self, progress=None):
-        from rank_bm25 import BM25Okapi
+        """Full build in one go (used by tests and evaluation scripts)."""
         download_acts()
-        act_chunks = load_act_pdfs()
-        self.chunks = act_chunks + checklist_chunks()
-        self.acts = {}
-        for c in act_chunks:
-            self.acts[c.act] = self.acts.get(c.act, 0) + 1
-        corpus = [_tokens(f"{c.title} {c.title} {c.text}") for c in self.chunks]
-        self.bm25 = BM25Okapi(corpus)
-        if progress:
-            progress(0.3, "Keyword index ready")
+        self._index(load_act_pdfs())
         self._build_vectors(progress)
+        self.status = "ready"
         return self
+
+    def build_fast(self):
+        """Start in seconds: rights checklist + any Acts already on disk, keyword search only."""
+        self._index(load_act_pdfs())
+        self.status = "loading"
+        return self
+
+    def start_background(self):
+        """Download the Acts and build meaning search without blocking the app."""
+        import threading
+        if getattr(self, "_thread", None) and self._thread.is_alive():
+            return
+
+        def work():
+            try:
+                self.status = "downloading the Acts"
+                download_acts()
+                self.status = "reading the Acts"
+                self._index(load_act_pdfs())
+                self.status = "indexing for meaning search"
+                self._build_vectors(lambda p, t: setattr(self, "status", t))
+            except Exception as e:  # never break the app
+                self.vector_error = str(e)[:300]
+            finally:
+                self.status = "ready"
+
+        self._thread = threading.Thread(target=work, daemon=True)
+        self._thread.start()
+
+    def _index(self, act_chunks):
+        from rank_bm25 import BM25Okapi
+        chunks = act_chunks + checklist_chunks()
+        acts = {}
+        for c in act_chunks:
+            acts[c.act] = acts.get(c.act, 0) + 1
+        bm25 = BM25Okapi([_tokens(f"{c.title} {c.title} {c.text}") for c in chunks])
+        # swap in one step so searches running at the same time stay consistent
+        self.chunks, self.bm25, self.acts = chunks, bm25, acts
 
     def _build_vectors(self, progress=None):
         if llm.is_mock():
@@ -379,4 +411,5 @@ class KnowledgeBase:
             "vector_search": self.vector_ready,
             "vector_note": self.vector_error,
             "downloads": dict(DOWNLOAD_LOG),
+            "status": self.status,
         }
