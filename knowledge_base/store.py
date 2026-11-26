@@ -83,10 +83,63 @@ def _body_start(text: str) -> int:
     return 0
 
 
+_LINE_HEAD = re.compile(r"(?m)^[ \t]*(\d{1,3})([A-Z]{0,2})\.[ \t]*(.*)$")
+_DASH_TITLE = re.compile(r"^(?:\(1\)\s*)?([\"“‘']?[A-Z][^\n]{2,200}?)[.:]?\s*[—–-]{1,2}")
+
+
+def _find_heads(body: str) -> list[tuple[int, str, str]]:
+    """Find section starts in the three layouts used by official Indian Act PDFs:
+       A) '60. Right to payment of maternity benefit.—(1) ...'      (India Code)
+       B) '27. Agreement in restraint of trade, void' + new line      (older reprints)
+       C) '6. (1) The consent given ...' with the heading in the margin (Gazette)
+    Section numbers must keep going up, so numbered list items inside a section
+    (1., 2., 3. ...) are never mistaken for new sections."""
+    heads, last = [], 0
+    lines = body.split("\n")
+    offsets, pos = [], 0
+    for ln in lines:
+        offsets.append(pos)
+        pos += len(ln) + 1
+    for i, ln in enumerate(lines):
+        m = _LINE_HEAD.match(ln)
+        if not m:
+            continue
+        num, suffix, rest = int(m.group(1)), m.group(2), m.group(3).strip()
+        if re.match(r"(Subs|Ins|Omitted|Added|The words|See|Rep)\b", rest):
+            continue                                    # footnotes
+        nxt = next((l.strip() for l in lines[i + 1:i + 4] if l.strip()), "")
+        title, strength = None, 0
+        mt = _DASH_TITLE.match(rest)
+        if mt:
+            title, strength = mt.group(1), 3
+        elif rest and nxt and not re.search(r"[—–]", rest):
+            joined = rest + " " + nxt                    # heading wrapped onto a second line
+            mj = _DASH_TITLE.match(joined)
+            if mj and len(rest) > 25:
+                title, strength = mj.group(1), 3
+        if not title and rest.lstrip("\"“‘'")[:1].isupper() and len(rest) < 140 and not rest.endswith((",", ";")) \
+                and nxt[:1].isupper():
+            title, strength = rest.rstrip(". "), 2       # heading alone on its line
+        if not title and re.match(r"^\(1\)\s*\S", rest):
+            words = re.sub(r"^\(1\)\s*", "", rest).split()
+            title, strength = " ".join(words[:8]), 1     # no heading (Gazette layout)
+        if not title:
+            continue
+        same = num == last and suffix                    # e.g. 2A after 2
+        jump_ok = (num > last and num - last <= (60 if strength >= 2 else 6)) or same
+        if last == 0:
+            jump_ok = num <= 3 or strength == 3   # an extract may start later than section 1
+        if not jump_ok:
+            continue
+        heads.append((offsets[i], f"{num}{suffix}", title.strip()))
+        last = num
+    return heads
+
+
 def split_act(text: str, act: str, short: str, fname: str) -> list[Chunk]:
     text = _clean(text)
     body = text[_body_start(text):]
-    heads = list(_SEC_HEAD.finditer(body))
+    heads = _find_heads(body)
     chunks: list[Chunk] = []
     if len(heads) < 3:      # unusual layout: fall back to fixed-size pieces
         for i in range(0, len(body), config.CHUNK_CHARS):
@@ -96,11 +149,9 @@ def split_act(text: str, act: str, short: str, fname: str) -> list[Chunk]:
                                     title=f"Part {i // config.CHUNK_CHARS + 1}", text=piece))
         return chunks
     seen = {}
-    for idx, h in enumerate(heads):
-        end = heads[idx + 1].start() if idx + 1 < len(heads) else len(body)
-        sec, title = h.group(1), h.group(2).strip().rstrip(".")
-        content = body[h.start():end].strip()
-        # Drop footnotes/amendment notes noise lines like "1. Subs. by Act ..."
+    for idx, (start, sec, title) in enumerate(heads):
+        end = heads[idx + 1][0] if idx + 1 < len(heads) else len(body)
+        content = body[start:end].strip()
         content = re.sub(r"(?m)^\s*\d+\.\s*(?:Subs|Ins|Omitted|Added|The words)\b.*$", "", content).strip()
         n = seen.get(sec, 0)
         seen[sec] = n + 1
@@ -162,7 +213,7 @@ def checklist_chunks() -> list[Chunk]:
     for r in rights_checklist.RULES:
         out.append(Chunk(id=_cid("checklist", r["id"]), act=r["act"],
                          short=r["act"].split(",")[0], section=r["section"], title=r["title"],
-                         text=f"{r['title']}. {r['rule']}", source="checklist", meta={"rule_id": r["id"]}))
+                         text=f"{r['title']}. {r['rule']} Look for: {r['look_for']}. Related words: {', '.join(r['keywords'])}.", source="checklist", meta={"rule_id": r["id"]}))
     return out
 
 
@@ -284,18 +335,29 @@ class KnowledgeBase:
                 for rank, (c, _s) in enumerate(lst):
                     fused[c.id] = fused.get(c.id, 0.0) + 1.0 / (60 + rank)
                     holder[c.id] = c
+        # Plain-language checklist rules act as a bridge to the official text: when a
+        # question matches a rule, the official section behind it is lifted as well.
+        official = {}
+        for c in self.chunks:
+            if c.source == "act" and c.section and (c.act, c.section) not in official:
+                official[(c.act, c.section)] = c
+        for cid in list(fused):
+            c = holder[cid]
+            if c.source == "checklist":
+                o = official.get((c.act, c.section))
+                if o is not None:
+                    fused[o.id] = fused.get(o.id, 0.0) + fused[cid]
+                    holder[o.id] = o
         ranked = sorted(fused, key=fused.get, reverse=True)
         results, seen = [], set()
-        has_official = any(c.source == "act" for c in self.chunks)
         for cid in ranked:
             c = holder[cid]
-            key = (c.act, c.section, c.source)
+            key = (c.act, c.section)
             if key in seen:
                 continue
+            if c.source == "checklist" and key in official:
+                continue                      # the official text is shown instead
             seen.add(key)
-            if prefer_official and has_official and c.source == "checklist":
-                # keep checklist summaries but rank them after official text
-                fused[cid] *= 0.8
             d = asdict(c)
             d["score"] = round(fused[cid], 5)
             d["cite"] = c.cite()
